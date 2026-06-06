@@ -370,10 +370,10 @@ input:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(230,57,70,.1)}
 #particles-canvas{position:fixed;inset:0;z-index:0;pointer-events:none}
 /* Toast notifications stack */
 #notif-stack{position:fixed;top:70px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
-.notif-item{background:rgba(20,10,30,.95);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;max-width:260px;animation:slideIn .3s ease;backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.notif-item{display:flex;align-items:center;gap:10px;background:rgba(20,10,30,.92);border:1px solid var(--red);border-radius:10px;padding:8px 14px 8px 10px;font-size:13px;font-weight:600;max-width:260px;animation:slideIn .3s ease;backdrop-filter:blur(8px);box-shadow:0 0 20px rgba(230,57,70,.2);white-space:nowrap}
 .notif-item.notif-err{border-color:var(--red);color:#ff8090}
-.notif-item.notif-ok{border-color:#2d5a2d;color:#6fcf6f}
-.notif-item.notif-warn{border-color:#5a4a1a;color:#f6a623}
+.notif-item.notif-ok{border-color:#2d5a2d;color:#6fcf6f;box-shadow:0 0 20px rgba(111,207,111,.15)}
+.notif-item.notif-warn{border-color:var(--red);color:#ff8090}
 @keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 </style>
@@ -534,7 +534,7 @@ function onTurnstileSuccess(token) {
   let W,H,pts=[];
   function resize(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;}
   resize();window.addEventListener('resize',resize);
-  for(let i=0;i<38;i++)pts.push({x:Math.random()*1920,y:Math.random()*1080,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*0.18,vy:(Math.random()-.5)*0.12,o:Math.random()*0.5+0.1});
+  for(let i=0;i<38;i++)pts.push({x:Math.random()*1920,y:Math.random()*1080,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*0.04,vy:(Math.random()-.5)*0.03,o:Math.random()*0.5+0.1});
   function draw(){
     ctx.clearRect(0,0,W,H);
     pts.forEach(p=>{
