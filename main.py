@@ -190,6 +190,7 @@ class LoginBody(BaseModel):
     ra: str
     senha: str
     cf: Optional[str] = None
+    turnstile_token: Optional[str] = None
 
 class TasksBody(BaseModel):
     token: str
@@ -206,10 +207,31 @@ class CompleteBody(BaseModel):
 
 # ─── ROTAS API ───────────────────────────────────────────────────────────────
 
+TURNSTILE_SECRET = "0x4AAAAAADf8FX1DAuHNy6M-3rohj2wvMvw"
+
+def verify_turnstile(token):
+    if not token:
+        return False
+    try:
+        data = json.dumps({"secret": TURNSTILE_SECRET, "response": token}).encode()
+        r = urllib.request.Request(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(r, context=ctx, timeout=10) as res:
+            result = json.loads(res.read())
+            return result.get("success", False)
+    except:
+        return False
+
 @app.post('/api/login')
 def api_login(body: LoginBody):
     if not body.cf or len(body.cf.strip()) < 50:
         raise HTTPException(status_code=401, detail='RA ou senha inválidos')
+    if not verify_turnstile(body.turnstile_token):
+        raise HTTPException(status_code=403, detail='Verificação Cloudflare falhou. Recarregue a página.')
     try:
         return do_login(body.ra, body.senha, body.cf)
     except Exception as e:
@@ -335,10 +357,46 @@ input:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(230,57,70,.1)}
 .welcome{color:#9b8fd4;font-size:13px;margin-bottom:16px;padding:10px 14px;background:rgba(155,143,212,.06);border-left:2px solid #9b8fd4;border-radius:0 6px 6px 0}
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeDown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+/* Cloudflare/Turnstile screen */
+#cf-screen{position:fixed;inset:0;background:#1a1a2e;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;transition:opacity 0.8s ease}
+#cf-screen.hidden{opacity:0;pointer-events:none}
+.cf-logo{font-size:32px;color:#e88c30;font-weight:700;letter-spacing:2px}
+.cf-title{color:#fff;font-size:18px;font-weight:600}
+.cf-subtitle{color:#aaa;font-size:13px}
+.cf-spinner{width:40px;height:40px;border:3px solid rgba(232,140,48,.2);border-top:3px solid #e88c30;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#cf-turnstile-wrap{margin-top:8px}
+/* Particles canvas */
+#particles-canvas{position:fixed;inset:0;z-index:0;pointer-events:none}
+/* Toast notifications stack */
+#notif-stack{position:fixed;top:70px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.notif-item{background:rgba(20,10,30,.95);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;max-width:260px;animation:slideIn .3s ease;backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.notif-item.notif-err{border-color:var(--red);color:#ff8090}
+.notif-item.notif-ok{border-color:#2d5a2d;color:#6fcf6f}
+.notif-item.notif-warn{border-color:#5a4a1a;color:#f6a623}
+@keyframes slideIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
 </style>
 </head>
 <body>
+
+<!-- Cloudflare Turnstile screen -->
+<div id="cf-screen">
+  <div class="cf-logo">⚡ Verificando</div>
+  <div class="cf-spinner" id="cf-spinner"></div>
+  <div class="cf-title">Just a moment...</div>
+  <div class="cf-subtitle">Verificando se você é humano</div>
+  <div id="cf-turnstile-wrap">
+    <div class="cf-turnstile" data-sitekey="0x4AAAAAADf8FSTL21uTKbKu" data-callback="onTurnstileSuccess"></div>
+  </div>
+</div>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
+<!-- Particles -->
+<canvas id="particles-canvas"></canvas>
+
+<!-- Notification stack (below owner card) -->
+<div id="notif-stack"></div>
 
 <!-- Toast -->
 <div class="toast" id="toast">✅ Logado com sucesso</div>
@@ -385,7 +443,6 @@ input:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(230,57,70,.1)}
         <div class="cf-hint">→ F12 → Application → Cookies</div>
       </div>
       <button class="btn btn-primary" id="btn-login" onclick="doLogin()">Entrar →</button>
-      <div class="terminal" id="log-login"></div>
     </div>
 
     <div class="footer-links">
@@ -459,6 +516,49 @@ input:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(230,57,70,.1)}
 </div>
 
 <script>
+// ── Cloudflare Turnstile ──
+let turnstileToken = null;
+function onTurnstileSuccess(token) {
+  turnstileToken = token;
+  const screen = document.getElementById('cf-screen');
+  const spinner = document.getElementById('cf-spinner');
+  if(spinner) spinner.style.display='none';
+  screen.classList.add('hidden');
+  setTimeout(()=>screen.style.display='none', 900);
+}
+
+// ── Particles ──
+(function(){
+  const c=document.getElementById('particles-canvas');
+  const ctx=c.getContext('2d');
+  let W,H,pts=[];
+  function resize(){W=c.width=window.innerWidth;H=c.height=window.innerHeight;}
+  resize();window.addEventListener('resize',resize);
+  for(let i=0;i<38;i++)pts.push({x:Math.random()*1920,y:Math.random()*1080,r:Math.random()*1.4+0.3,vx:(Math.random()-.5)*0.18,vy:(Math.random()-.5)*0.12,o:Math.random()*0.5+0.1});
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0)p.x=W;if(p.x>W)p.x=0;
+      if(p.y<0)p.y=H;if(p.y>H)p.y=0;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(230,57,70,${p.o})`;ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ── Notifications ──
+function notify(msg,type='ok',dur=4000){
+  const stack=document.getElementById('notif-stack');
+  const d=document.createElement('div');
+  d.className='notif-item notif-'+type;
+  d.textContent=msg;
+  stack.appendChild(d);
+  setTimeout(()=>{d.style.transition='opacity .4s';d.style.opacity='0';setTimeout(()=>d.remove(),400);},dur);
+}
+
 let state={token:'',captcha:'',cf:'',nome:'',tasks:[],selected:new Set(),waitSec:90};
 let pwVisible=false;
 function togglePw(){pwVisible=!pwVisible;const i=document.getElementById('senha');i.type=pwVisible?'text':'password';document.getElementById('pw-toggle').textContent=pwVisible?'🙈':'👁';}
@@ -472,23 +572,23 @@ async function doLogin(){
   const senha=document.getElementById('senha').value.trim();
   state.cf=document.getElementById('cf').value.trim();
   if(!ra||!senha){alert('Preencha RA e senha!');return;}
-  clearLog('log-login');
+  
   const btn=document.getElementById('btn-login');btn.disabled=true;btn.textContent='Aguarde...';
-  log('log-login','Resolvendo captcha e fazendo login...','log-warn');
+  notify('🔄 Resolvendo captcha...','warn',6000);
   try{
-    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ra,senha,cf:state.cf||null})});
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ra,senha,cf:state.cf||null,turnstile_token:turnstileToken})});
     const d=await r.json();
-    if(!r.ok){log('log-login','Erro: '+(d.detail||r.status),'log-err');btn.disabled=false;btn.textContent='Entrar →';return;}
+    if(!r.ok){notify('❌ Erro: '+(d.detail||r.status),'err');btn.disabled=false;btn.textContent='Entrar →';return;}
     state.token=d.token;state.captcha=d.captcha;state.nome=d.nome;
-    showToast('✅ Logado com sucesso');
-    log('log-login','Buscando atividades...','log-warn');
+    notify('✅ Logado com sucesso','ok');
+    notify('📋 Buscando atividades...','warn',4000);
     await fetchTasks();
-  }catch(e){log('log-login','Erro: '+e.message,'log-err');btn.disabled=false;btn.textContent='Entrar →';}
+  }catch(e){notify('❌ '+e.message,'err');btn.disabled=false;btn.textContent='Entrar →';}
 }
 async function fetchTasks(){
   const r=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:state.token,captcha:state.captcha,cf:state.cf||null})});
   const d=await r.json();
-  if(!r.ok){log('log-login','Erro tarefas: '+(d.detail||r.status),'log-err');document.getElementById('btn-login').disabled=false;document.getElementById('btn-login').textContent='Entrar →';return;}
+  if(!r.ok){notify('❌ Erro tarefas: '+(d.detail||r.status),'err');document.getElementById('btn-login').disabled=false;document.getElementById('btn-login').textContent='Entrar →';return;}
   state.captcha=d.captcha||state.captcha;
   state.tasks=[...d.pending,...d.expired];
   renderTasks(d.pending,'list-pending');
@@ -514,7 +614,7 @@ function selectAll(){state.tasks.forEach(t=>{state.selected.add(String(t.id));co
 async function runTasks(){
   if(!state.selected.size){alert('Selecione pelo menos uma atividade!');return;}
   const toRun=state.tasks.filter(t=>state.selected.has(String(t.id)));
-  clearLog('log-run');showStep('step-running');
+  document.getElementById('log-run').innerHTML='';showStep('step-running');
   let ok=0;
   for(let i=0;i<toRun.length;i++){
     const t=toRun[i];
