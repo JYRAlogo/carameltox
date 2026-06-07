@@ -140,9 +140,10 @@ def do_get_tasks(token, captcha, cf=None):
                 v2 = gc.get('id')
                 if v2 and str(v2) not in targets: targets.append(str(v2))
     def fetch(expired):
+        filter_exp = 'false' if expired else 'true'
         url = (f'{BASE}/p/https://edusp-api.ip.tv/tms/task/todo'
                f'?expired_only={str(expired).lower()}&limit=100&offset=0'
-               f'&filter_expired=true&is_exam=false&with_answer=true&is_essay=false'
+               f'&filter_expired={filter_exp}&is_exam=false&with_answer=true&is_essay=false'
                f'&answer_statuses=draft&answer_statuses=pending&with_apply_moment=true')
         for t in targets: url += f'&publication_target={t}'
         s2, d2 = req(url, headers=headers_auth(token, captcha), cookies=cookies)
@@ -1122,6 +1123,20 @@ body::after{
   box-shadow:0 0 12px var(--redglow2);
 }
 .opt-sub{font-size:10px;font-weight:400;color:var(--muted);display:block;margin-top:2px}
+.time-range-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.time-range-field{}
+.time-spin-wrap{position:relative}
+.time-spin{
+  width:100%;background:rgba(5,0,14,0.8);
+  border:1px solid var(--border2);border-radius:10px;
+  color:var(--text);font-size:20px;font-weight:700;
+  font-family:'BrownCookies','Rajdhani',sans-serif;
+  padding:10px 14px;outline:none;
+  text-align:center;transition:all 0.25s;
+  -moz-appearance:textfield;
+}
+.time-spin::-webkit-outer-spin-button,.time-spin::-webkit-inner-spin-button{opacity:1;height:28px}
+.time-spin:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(154,51,255,0.12)}
 .opt-btn.active .opt-sub{color:rgba(255,0,56,0.6)}
 
 /* Progress / terminal */
@@ -1720,7 +1735,7 @@ let state={
   token:'',captcha:'',cf:'',
   nome:'',ra:'',escola:'',
   tasks:[],selected:new Set(),
-  waitSec:90,draft:false,
+  waitSec:60,waitMin:60,waitMax:180,draft:false,
   loggedIn:false,
 };
 
@@ -1953,7 +1968,15 @@ function togglePw(){
 function setSpeed(s,b){
   state.waitSec=s;
   document.querySelectorAll('.opts-grid .opt-btn').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
+  if(b)b.classList.add('active');
+}
+function updateTimeRange(){
+  const mn=parseInt(document.getElementById('time-min').value)||1;
+  const mx=parseInt(document.getElementById('time-max').value)||3;
+  const mn2=Math.min(mn,mx);const mx2=Math.max(mn,mx);
+  // pick random seconds between min*60 and max*60
+  state.waitMin=mn2*60;state.waitMax=mx2*60;
+  state.waitSec=mn2*60; // default to min, randomized per task in runTasks
 }
 function setMode(isDraft,b){
   state.draft=isDraft;
@@ -2000,7 +2023,7 @@ async function runTasks(){
       const r=await fetch('/api/complete_task',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({token:state.token,captcha:state.captcha,task_id:t.id,
-          publication_target:t.publication_target||'',wait_sec:state.waitSec,
+          publication_target:t.publication_target||'',wait_sec:state.waitMin&&state.waitMax?Math.floor(Math.random()*(state.waitMax-state.waitMin+1))+state.waitMin:state.waitSec,
           cf:state.cf||null,draft:state.draft})
       });
       const d=await r.json();
