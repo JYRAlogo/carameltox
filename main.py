@@ -1123,20 +1123,42 @@ body::after{
   box-shadow:0 0 12px var(--redglow2);
 }
 .opt-sub{font-size:10px;font-weight:400;color:var(--muted);display:block;margin-top:2px}
-.time-range-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
-.time-range-field{}
-.time-spin-wrap{position:relative}
-.time-spin{
-  width:100%;background:rgba(5,0,14,0.8);
-  border:1px solid var(--border2);border-radius:10px;
-  color:var(--text);font-size:20px;font-weight:700;
+.time-range-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.time-range-field{display:flex;flex-direction:column;gap:0}
+.time-spin-label{
+  font-size:10px;font-weight:400;color:var(--muted);
+  display:block;margin-bottom:4px;
+  letter-spacing:1px;text-align:center;
   font-family:'BrownCookies','Rajdhani',sans-serif;
-  padding:10px 14px;outline:none;
-  text-align:center;transition:all 0.25s;
-  -moz-appearance:textfield;
 }
-.time-spin::-webkit-outer-spin-button,.time-spin::-webkit-inner-spin-button{opacity:1;height:28px}
-.time-spin:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(154,51,255,0.12)}
+.time-spin{
+  width:100%;
+  background:transparent;
+  border:1px solid var(--border2);
+  border-radius:8px;
+  color:var(--text);
+  font-size:14px;font-weight:600;
+  font-family:'MatchaCih','Orbitron',monospace;
+  letter-spacing:1px;
+  padding:10px 8px;
+  outline:none;
+  text-align:center;
+  transition:all 0.2s;
+  -moz-appearance:textfield;
+  cursor:pointer;
+}
+.time-spin::-webkit-outer-spin-button,
+.time-spin::-webkit-inner-spin-button{opacity:1;height:24px;cursor:pointer}
+.time-spin:hover{
+  border-color:var(--red);color:var(--red);
+  background:rgba(255,0,56,0.06);
+  box-shadow:0 0 12px var(--redglow2);
+}
+.time-spin:focus{
+  border-color:var(--red);color:var(--red);
+  background:rgba(255,0,56,0.06);
+  box-shadow:0 0 12px var(--redglow2);
+}
 .opt-btn.active .opt-sub{color:rgba(255,0,56,0.6)}
 
 /* Progress / terminal */
